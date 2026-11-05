@@ -261,6 +261,7 @@ final class Pile {
     var radius: CGFloat
     let seed = rnd(0, 100)
     var capNoise: [CGFloat] = []       // per-column height multiplier, so snow lies unevenly
+    var icicles: [Icicle] = []         // icicles growing from this pile's bottom edge
 
     init(id: Int, rect: CGRect, radius: CGFloat = 0, ground: Bool = false) {
         self.id = id; self.rect = rect; self.isGround = ground; self.radius = radius
@@ -417,6 +418,11 @@ final class Simulation {
     var fishAcc: CGFloat = 0
     var boat: Boat?
     var nextBoat: CGFloat = rnd(5, 14)
+    var iceFalls: [IceShard] = []                 // icicles knocked loose and falling
+    var lightStrings: [LightString] = []
+    var drawingLight: (a: CGPoint, b: CGPoint)?   // a string being drawn with ⌥-drag
+    var dragAnchor: (s: Int, a: Int)?             // an existing attach point being moved
+    var dragMoved = false
     var secondFlash: CGFloat = -1
     var gen = -1
     var relaxTick = 0
@@ -442,6 +448,7 @@ final class Simulation {
         ground.reset(ground.rect)
         fish.removeAll(); boat = nil
         water = -12; ripples.removeAll()
+        iceFalls.removeAll()
     }
 
     /// Effects whose fallen material is a smooth heightmap (snow, sand).
@@ -495,29 +502,10 @@ final class Simulation {
                 p.radius = w.radius
                 let dx = r.minX - p.rect.minX, dy = r.maxY - p.rect.maxY, dw = r.width - p.rect.width
                 if abs(dx) > 0.5 || abs(dy) > 0.5 || abs(dw) > 0.5 {
-                    let vx = dx / dt, vy = dy / dt
-                    // A hard upward thrust launches the snow (it flies up, then falls back and re-piles);
-                    // a resize can't keep its columns. Everything else — all side-to-side dragging — is
-                    // inertial: the snow keeps its place in the world while the window slides under it.
-                    if abs(dw) > 2 || vy > 800 {
-                        p.reset(r)
-                        spill(p, from: r, vx: vx, vy: vy, old: true)
-                        carryBodies(w.id, dx: dx, dy: dy, vx: vx, vy: vy)
-                    } else {
-                        pendingH[p.id] = nil
-                        let oldMinX = p.rect.minX
-                        p.carry(to: r)                        // base follows the window vertically
-                        // horizontal inertia: snow holds world position and sheds off the trailing edge
-                        p.slide(windowDX: r.minX - oldMinX) { sx, amt in
-                            for _ in 0..<min(26, Int(amt / 4) + 1) {
-                                var q = P(x: sx + rnd(-1.5, 1.5), y: r.maxY + rnd(0, amt),
-                                          vx: rnd(-20, 20), vy: rnd(-15, 15), size: rnd(1.4, 3))
-                                q.ignoreID = w.id; q.ignoreT = 0.2
-                                particles.append(q)
-                            }
-                        }
-                        carryBodies(w.id, dx: dx, dy: dy, vx: 0, vy: 0)
-                    }
+                    breakIcicles(p, vx: dx / dt, vy: dy / dt)   // moving the tab knocks its icicles off
+                    p.reset(r)          // keep geometry fresh first …
+                    spill(p, from: r, vx: dx / dt, vy: dy / dt, old: true)
+                    carryBodies(w.id, dx: dx, dy: dy, vx: dx / dt, vy: dy / dt)
                 }
                 newOrder.append(p)
             } else {
@@ -773,6 +761,8 @@ final class Simulation {
 
         // piles: settle, melt, age
         relaxTick += 1
+        stepLights(dt)
+        stepIcicles(dt)
         let doRelax = relaxTick % 4 == 0
         for pile in order {
             if heaped {
@@ -1192,9 +1182,11 @@ final class Simulation {
             }
         }
 
+        drawIcicles(c)
         if effect == .snow { drawBodies(c) }
         drawWater(c)
         drawBoat(c)
+        // (Christmas lights are drawn by the front overlay, above windows, not here.)
 
         // particles
         switch effect {
@@ -1291,6 +1283,7 @@ final class Simulation {
 
 final class OverlayView: NSView {
     let sim: Simulation
+    var onFrame: (() -> Void)?        // redraw the front (lights) layer each tick
     private var link: CADisplayLink?
     private var last: CFTimeInterval = 0
 
@@ -1327,6 +1320,7 @@ final class OverlayView: NSView {
         sim.step(CGFloat(dt))
         if let l = layer, l.contentsScale != 1 { l.contentsScale = 1 }
         needsDisplay = true
+        onFrame?()
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -1336,9 +1330,35 @@ final class OverlayView: NSView {
     }
 }
 
+/// A second, click-through overlay that sits ABOVE app windows and draws only the Christmas
+/// lights, so the user's strings are visible everywhere — not hidden behind windows like the
+/// weather. It shares the back view's simulation; the back view's display link drives both.
+final class FrontView: NSView {
+    let sim: Simulation
+    init(sim: Simulation, size: CGSize) {
+        self.sim = sim
+        super.init(frame: CGRect(origin: .zero, size: size))
+        wantsLayer = true
+        layerContentsRedrawPolicy = .onSetNeedsDisplay
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override var isOpaque: Bool { false }
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        layer?.contentsScale = 1
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        guard let c = NSGraphicsContext.current?.cgContext else { return }
+        c.clear(bounds)
+        sim.drawLights(c)
+    }
+}
+
 final class Overlay {
     let window: NSWindow
     let view: OverlayView
+    let frontWindow: NSWindow
+    let frontView: FrontView
 
     init(screen: NSScreen) {
         window = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
@@ -1354,11 +1374,27 @@ final class Overlay {
         window.isReleasedWhenClosed = false
         view = OverlayView(screen: screen)
         window.contentView = view
+
+        // Front overlay for the Christmas lights: above every app window so they show up everywhere.
+        frontWindow = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        frontWindow.setFrame(screen.frame, display: false)
+        frontWindow.isOpaque = false
+        frontWindow.backgroundColor = .clear
+        frontWindow.hasShadow = false
+        frontWindow.ignoresMouseEvents = true
+        frontWindow.level = .floating
+        frontWindow.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
+        frontWindow.isReleasedWhenClosed = false
+        frontView = FrontView(sim: view.sim, size: screen.frame.size)
+        frontWindow.contentView = frontView
+        view.onFrame = { [weak frontView] in frontView?.needsDisplay = true }
+
         window.orderFrontRegardless()
+        frontWindow.orderFrontRegardless()
         view.start()
     }
 
-    func close() { view.stop(); window.orderOut(nil) }
+    func close() { view.stop(); window.orderOut(nil); frontWindow.orderOut(nil) }
 }
 
 // MARK: - Menu slider
@@ -1424,9 +1460,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Watch clicks anywhere (the overlay itself passes clicks through) so a click on the
         // sailboat can sink it. A global mouse-down monitor needs no special permission and
         // does not consume the event.
-        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] _ in
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] e in
+            guard let self else { return }
             let p = NSEvent.mouseLocation
-            self?.overlays.forEach { $0.view.sim.clickAt(global: p) }
+            let option = e.modifierFlags.contains(.option)
+            let phase = e.type == .leftMouseDown ? 0 : (e.type == .leftMouseDragged ? 1 : 2)
+            self.overlays.forEach { $0.view.sim.lightMouse(global: p, phase: phase, option: option) }
+            if phase == 0 { self.overlays.forEach { $0.view.sim.clickAt(global: p) } }
         }
     }
 
@@ -1474,6 +1515,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 drain.target = self
                 menu.addItem(drain)
             }
+        }
+        let addLights = NSMenuItem(title: "Add Christmas Lights  (⌥-drag to hang · ⌥-click cord to pin)", action: #selector(addLights), keyEquivalent: "")
+        addLights.target = self
+        addLights.image = NSImage(systemSymbolName: "lightbulb.2", accessibilityDescription: nil)
+        menu.addItem(addLights)
+        if overlays.contains(where: { !$0.view.sim.lightStrings.isEmpty }) {
+            let clearLights = NSMenuItem(title: "Clear Christmas Lights", action: #selector(clearLights), keyEquivalent: "")
+            clearLights.target = self
+            menu.addItem(clearLights)
         }
         menu.addItem(.separator())
         let inten = NSMenuItem(title: "Intensity", action: nil, keyEquivalent: "")
@@ -1542,6 +1592,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func toggleFlood() { Settings.flood.toggle() }
+    @objc func addLights() { overlays.forEach { $0.view.sim.addDefaultLightString() } }
+    @objc func clearLights() { overlays.forEach { $0.view.sim.lightStrings.removeAll() } }
     @objc func drainWater() { overlays.forEach { $0.view.sim.drainWater() } }
 
     @objc func clearPiles() { overlays.forEach { $0.view.sim.clearAll() } }
