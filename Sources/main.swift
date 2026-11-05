@@ -286,6 +286,30 @@ final class Pile {
         else { reset(r) }   // width changed — can't map columns cleanly
     }
 
+    var slideAcc: CGFloat = 0
+    /// Snow inertia: as the window slides under it, the snow stays put in world space,
+    /// drifting toward the trailing edge and shedding off it (never glued to the window).
+    func slide(windowDX: CGFloat, spill: (CGFloat, CGFloat) -> Void) {
+        guard h.count > 1 else { return }
+        slideAcc -= windowDX                 // snow holds its world position
+        var guardN = 0
+        while slideAcc >= Pile.col && guardN < 80 { shiftCells(by: 1, spill: spill); slideAcc -= Pile.col; guardN += 1 }
+        while slideAcc <= -Pile.col && guardN < 80 { shiftCells(by: -1, spill: spill); slideAcc += Pile.col; guardN += 1 }
+    }
+    private func shiftCells(by n: Int, spill: (CGFloat, CGFloat) -> Void) {
+        if n >= 1 {
+            let off = h[h.count - 1]
+            if off > 0.3 { spill(rect.maxX - Pile.col * 0.5, off) }
+            for i in stride(from: h.count - 1, to: 0, by: -1) { h[i] = h[i - 1] }
+            h[0] = 0
+        } else {
+            let off = h[0]
+            if off > 0.3 { spill(rect.minX + Pile.col * 0.5, off) }
+            for i in 0..<(h.count - 1) { h[i] = h[i + 1] }
+            h[h.count - 1] = 0
+        }
+    }
+
     /// How far the rounded top corner dips below the flat top edge at x.
     @inline(__always) func drop(_ x: CGFloat) -> CGFloat {
         guard radius > 0 else { return 0 }
@@ -302,6 +326,7 @@ final class Pile {
         rect = r
         h = Array(repeating: 0, count: max(1, Int(ceil(r.width / Pile.col))))
         rest.removeAll()
+        slideAcc = 0
         buildNoise()
     }
 
@@ -389,6 +414,9 @@ final class Simulation {
     var water: CGFloat = -12
     var ripples: [(x: CGFloat, t: CGFloat)] = []
     var fish: [Fish] = []
+    var fishAcc: CGFloat = 0
+    var boat: Boat?
+    var nextBoat: CGFloat = rnd(5, 14)
     var secondFlash: CGFloat = -1
     var gen = -1
     var relaxTick = 0
@@ -412,7 +440,7 @@ final class Simulation {
         heldBall = nil; heldMan = nil; optionDown = false
         for p in piles.values { p.reset(p.rect) }
         ground.reset(ground.rect)
-        fish.removeAll()
+        fish.removeAll(); boat = nil
         water = -12; ripples.removeAll()
     }
 
@@ -475,7 +503,17 @@ final class Simulation {
                         carryBodies(w.id, dx: dx, dy: dy, vx: dx / dt, vy: dy / dt)
                     } else {
                         pendingH[p.id] = nil
-                        p.carry(to: r)                        // snow rides along, not deleted
+                        let oldMinX = p.rect.minX
+                        p.carry(to: r)                        // base follows the window
+                        // snow has inertia: it stays in world space and slides off the trailing edge
+                        p.slide(windowDX: r.minX - oldMinX) { sx, amt in
+                            for _ in 0..<min(30, Int(amt / 3) + 1) {
+                                var q = P(x: sx + rnd(-1.5, 1.5), y: r.maxY + rnd(0, amt),
+                                          vx: rnd(-25, 25), vy: rnd(-20, 15), size: rnd(1.4, 3))
+                                q.ignoreID = w.id; q.ignoreT = 0.2
+                                particles.append(q)
+                            }
+                        }
                         carryBodies(w.id, dx: dx, dy: dy, vx: 0, vy: 0)
                     }
                 }
@@ -897,7 +935,16 @@ final class Simulation {
             switch effect {
             case .snow:
                 let s = rnd(1.2, 3.6)
-                particles.append(P(x: x, y: top, vx: 0, vy: -(s * 18 + 22), size: s))
+                let vy = -(s * 18 + 22)
+                let drift = abs(vy) * slant                 // match the wind so flakes don't curl in late
+                if abs(slant) > 0.12 && CGFloat.random(in: 0...1) < min(0.6, abs(slant) * 0.55) {
+                    // seed from the upwind side too, so a cross-wind leaves no bare triangles at the edges
+                    let fromLeft = slant > 0
+                    particles.append(P(x: fromLeft ? -6 : bounds.width + 6, y: rnd(groundY, top),
+                                       vx: drift, vy: vy, size: s))
+                } else {
+                    particles.append(P(x: x, y: top, vx: drift, vy: vy, size: s))
+                }
             case .rain, .storm, .tornado:
                 let heavy: CGFloat = effect == .rain ? 1 : 1.15
                 let vy = -rnd(720, 950) * heavy
@@ -1145,6 +1192,7 @@ final class Simulation {
 
         if effect == .snow { drawBodies(c) }
         drawWater(c)
+        drawBoat(c)
 
         // particles
         switch effect {
@@ -1358,6 +1406,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var status: NSStatusItem!
     var overlays: [Overlay] = []
 
+    var clickMonitor: Any?
+
     func applicationDidFinishLaunching(_ n: Notification) {
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         let menu = NSMenu()
@@ -1369,6 +1419,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(screensChanged),
                                                           name: NSWorkspace.didWakeNotification, object: nil)
+        // Watch clicks anywhere (the overlay itself passes clicks through) so a click on the
+        // sailboat can sink it. A global mouse-down monitor needs no special permission and
+        // does not consume the event.
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] _ in
+            let p = NSEvent.mouseLocation
+            self?.overlays.forEach { $0.view.sim.clickAt(global: p) }
+        }
     }
 
     @objc func screensChanged() { rebuild() }
