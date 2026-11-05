@@ -1,0 +1,390 @@
+<title>Drift for Mac</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,500..800,100&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single night-sky column; content sits on frosted "windows" that the page's own snow lands on. */
+:root {
+  color-scheme: dark;
+  --night: #0a0f26;
+  --dusk: #1b1f4b;
+  --violet: #3a2e6b;
+  --frost: #dbeeff;
+  --ice: #8fd3ff;
+  --ink: #e9f0fb;
+  --muted: #9aa6c4;
+  --card: #141a3c;
+  --card-edge: #2a3363;
+  --code: #0d1330;
+  --display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --body: "Hanken Grotesk", ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html { background: var(--night); }
+body {
+  background: radial-gradient(1200px 700px at 78% -10%, var(--violet) 0%, transparent 60%),
+              linear-gradient(180deg, var(--dusk) 0%, var(--night) 55%);
+  background-color: var(--night);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100%;
+}
+#sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.wrap {
+  position: relative; z-index: 1;
+  max-width: 980px; margin: 0 auto;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+  padding-block: 56px 72px;
+  display: grid; gap: 72px;
+}
+h1, h2, h3 { font-family: var(--display); font-variation-settings: "SOFT" 100; text-wrap: balance; margin: 0; }
+p { margin: 0; }
+a { color: var(--ice); }
+:focus-visible { outline: 2px solid var(--ice); outline-offset: 3px; border-radius: 6px; }
+
+/* hero */
+.hero { display: grid; grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: center; padding-top: 40px; }
+.brand { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.brand img { width: 56px; height: 56px; filter: drop-shadow(0 6px 14px rgba(0,0,0,.45)); }
+.brand span { font-family: var(--display); font-weight: 700; font-size: 26px; font-variation-settings: "SOFT" 100; }
+.hero h1 { font-size: clamp(40px, 6.4vw, 68px); line-height: 1.02; font-weight: 700; letter-spacing: -0.01em; }
+.hero h1 em { font-style: italic; font-weight: 500; color: var(--frost); }
+.hero .lede { margin-top: 18px; color: var(--muted); font-size: 18px; max-width: 34ch; }
+
+.solid {
+  background: var(--card);
+  border: 1px solid var(--card-edge);
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(3, 6, 22, .55);
+}
+.get { padding: 28px; display: grid; gap: 18px; }
+.get .chrome { display: flex; gap: 7px; }
+.get .chrome i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; display: block; }
+.get .chrome i:nth-child(2) { background: #febc2e; } .get .chrome i:nth-child(3) { background: #28c840; }
+.get h2 { font-size: 24px; font-weight: 650; }
+.btn {
+  appearance: none; border: 0; cursor: pointer;
+  font: 600 16px/1 var(--body);
+  color: var(--night);
+  background: linear-gradient(90deg, var(--frost), var(--ice));
+  padding: 16px 22px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  box-shadow: 0 8px 28px rgba(143, 211, 255, .35);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.btn:hover { transform: translateY(-1px); box-shadow: 0 10px 34px rgba(143, 211, 255, .5); }
+.btn:disabled { opacity: .6; cursor: default; transform: none; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 13px; }
+.meta b { color: var(--ink); font-weight: 600; }
+.status { font-size: 13.5px; color: var(--frost); min-height: 1.4em; }
+
+/* steps */
+.section-head { display: grid; gap: 8px; margin-bottom: 26px; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ice); }
+.section-head h2 { font-size: clamp(30px, 4.2vw, 42px); font-weight: 650; }
+.section-head p { color: var(--muted); max-width: 62ch; }
+.steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+.step { padding: 24px; display: grid; gap: 10px; align-content: start; }
+.step .n { font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--night);
+  background: var(--frost); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; }
+.step h3 { font-size: 21px; font-weight: 650; }
+.step p, .step li { color: var(--muted); font-size: 15px; }
+.step ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.step strong { color: var(--ink); font-weight: 600; }
+.path { font-family: var(--mono); font-size: 13px; color: var(--frost); background: var(--code); padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+.why { font-size: 13.5px; border-left: 2px solid var(--card-edge); padding-left: 12px; }
+.alt { display: grid; gap: 8px; margin-top: 4px; }
+.alt summary { cursor: pointer; color: var(--ice); font-size: 14px; font-weight: 600; }
+.cmd { display: flex; gap: 8px; align-items: stretch; margin-top: 10px; min-width: 0; }
+.cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font-family: var(--mono); font-size: 12.5px;
+  background: var(--code); border: 1px solid var(--card-edge); border-radius: 10px; padding: 11px 12px; color: var(--frost); }
+.copy { appearance: none; border: 1px solid var(--card-edge); background: transparent; color: var(--ink);
+  font: 600 13px var(--body); border-radius: 10px; padding: 0 14px; cursor: pointer; }
+.copy:hover { border-color: var(--ice); }
+
+/* effects */
+.effects { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.fx { padding: 20px; display: grid; gap: 6px; }
+.fx h3 { font-size: 19px; font-weight: 650; display: flex; align-items: center; gap: 10px; }
+.fx h3 svg { width: 22px; height: 22px; flex: none; }
+.fx p { color: var(--muted); font-size: 14.5px; }
+
+/* faq */
+.faq { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 28px; }
+.faq div { display: grid; gap: 6px; }
+.faq h3 { font-family: var(--body); font-size: 16px; font-weight: 700; }
+.faq p { color: var(--muted); font-size: 15px; }
+footer { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between; border-top: 1px solid var(--card-edge); padding-top: 22px; }
+
+@media (max-width: 760px) {
+  .hero, .steps, .faq { grid-template-columns: 1fr; }
+  .effects { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wrap { gap: 56px; padding-block: 32px 56px; }
+  .hero { padding-top: 12px; }
+}
+@media (max-width: 460px) { .effects { grid-template-columns: 1fr; } }
+</style>
+
+<canvas id="sky" aria-hidden="true"></canvas>
+
+<main class="wrap">
+  <section class="hero">
+    <div>
+      <div class="brand"><img src="icon.png" alt=""><span>Drift</span></div>
+      <h1>Weather for your desktop that <em>never gets in your way.</em></h1>
+      <p class="lede">Snow, rain, petals and fireflies settle on your windows, widgets and desktop icons. They fall behind everything, so nothing you're working on is ever covered.</p>
+    </div>
+    <div class="get solid">
+      <div class="chrome" aria-hidden="true"><i></i><i></i><i></i></div>
+      <h2>Get Drift for Mac</h2>
+      <button class="btn" id="dl" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Download Drift.zip
+      </button>
+      <p class="status" id="status" role="status"></p>
+      <div class="meta">
+        <span><b>Version</b> 1.0</span>
+        <span><b>Size</b> 1.5 MB</span>
+        <span><b>Needs</b> macOS 14 Sonoma or later</span>
+        <span><b>Runs on</b> Apple silicon and Intel</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">Setup · about two minutes</span>
+      <h2>Install it in four steps</h2>
+      <p>Drift was made by a friend, not downloaded from the App Store, so macOS asks you to confirm it once the first time you open it. After that it opens like any other app.</p>
+    </div>
+    <div class="steps">
+      <article class="step solid">
+        <span class="n">1</span>
+        <h3>Download and move it</h3>
+        <p>Click <strong>Download Drift.zip</strong> above. Open your <span class="path">Downloads</span> folder and double-click the zip if Safari didn't unzip it for you. Drag <strong>Drift</strong> into <span class="path">Applications</span>.</p>
+      </article>
+      <article class="step solid">
+        <span class="n">2</span>
+        <h3>Open it once and confirm</h3>
+        <ol>
+          <li>Double-click <strong>Drift</strong>. macOS says it can't verify the app. Click <strong>Done</strong>.</li>
+          <li>Open <strong>System Settings → Privacy &amp; Security</strong> and scroll to the bottom.</li>
+          <li>Next to "Drift was blocked", click <strong>Open Anyway</strong>, then enter your password.</li>
+        </ol>
+        <details class="alt">
+          <summary>Prefer Terminal? One command does it</summary>
+          <div class="cmd">
+            <code id="cmd">xattr -dr com.apple.quarantine /Applications/Drift.app &amp;&amp; open /Applications/Drift.app</code>
+            <button class="copy" type="button" id="copy">Copy</button>
+          </div>
+        </details>
+      </article>
+      <article class="step solid">
+        <span class="n">3</span>
+        <h3>Pick your weather</h3>
+        <p>The Drift welcome panel opens. Choose an effect and an intensity. To have weather land on your desktop files too, click <strong>Allow…</strong> and switch Drift on under <strong>Accessibility</strong>. That part is optional.</p>
+        <p class="why">Accessibility lets Drift read where your desktop icons are. It never reads what's in your files or windows.</p>
+      </article>
+      <article class="step solid">
+        <span class="n">4</span>
+        <h3>Find it in the menu bar</h3>
+        <p>Drift has no Dock icon. Click its icon in the menu bar to switch weather, change intensity, pause, clear the piles, or turn on <strong>Open at Login</strong>.</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">Nine kinds of weather</span>
+      <h2>Switch any time from the menu bar</h2>
+    </div>
+    <div class="effects">
+      <article class="fx solid"><h3><svg viewBox="0 0 24 24" fill="none" stroke="#dbeeff" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/></svg>Snow</h3><p>Piles up softly on window tops and the Dock. Hold <strong>⌥ Option</strong> over it to pack a snowball, then throw it.</p></article>
+      <article class="fx solid"><h3><svg viewBox="0 0 24 24" fill="none" stroke="#8fd3ff" stroke-width="1.8" stroke-linecap="round"><path d="M7 15a4 4 0 1 1 1.5-7.7A5 5 0 0 1 18 9a3.5 3.5 0 0 1-.5 7H8M9 18l-1 2.5M13 18l-1 2.5M17 18l-1 2.5"/></svg>Rain</h3><p>Splashes where it lands. Turn on flood mode and the water slowly rises behind your windows.</p></article>
+      <article class="fx solid"><h3><svg viewBox="0 0 24 24" fill="none" stroke="#dbeeff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14a4 4 0 1 1 1.5-7.7A5 5 0 0 1 18 8a3.5 3.5 0 0 1-.5 7"/><path d="M13 12l-3 5h4l-3 5" stroke="#ffe98c"/></svg>Thunderstorm</h3><p>Heavy rain and branching lightning that strikes the tops of your windows in a burst of sparks.</p></article>
+      <article class="fx solid"><h3><svg viewBox="0 0 24 24" fill="none" stroke="#b8c2d4" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h18M5 9h14M7 13h10M9 17h6M11 21h2"/></svg>Tornado</h3><p>Wind-blown leaves, twigs and paper, and now and then a funnel that sweeps across and pulls it all up.</p></article>
+      <article class="fx solid"><h3><svg viewBox="0 0 24 24" fill="#f9b4c9"><path d="M12 3c2 2.5 2 5 0 7-2-2-2-4.5 0-7Zm7.6 5.5c-1 3-3 4.4-5.8 4.2.8-2.7 2.8-4.2 5.8-4.2ZM4.4 8.5c3 0 5 1.5 5.8 4.2-2.8.2-4.8-1.2-5.8-4.2Zm3.3 10.9c.3-3 1.9-4.9 4.3-5.6.5 2.8-.7 4.8-4.3 5.6Zm8.6 0c-3.6-.8-4.8-2.8-4.3-5.6 2.4.7 4 2.6 4.3 5.6Z"/></svg>Sakura</h3><p>Cherry petals drift down and rest on whatever they reach.</p></article>
+      <article class="fx solid"><h3><svg viewBox="0 0 24 24" fill="#ef8f2a"><path d="M20 4c-9 0-15 4-15 11 0 1.4.3 2.6.8 3.6L4 20.5l1.1 1 1.9-1.9c1 .5 2.2.8 3.5.8C17 20.4 20 13 20 4Z"/></svg>Autumn Leaves</h3><p>Leaves collect on your windows. Sweep the pointer across a pile to scatter it.</p></article>
+      <article class="fx solid"><h3><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#ffe98c" opacity=".25"/><circle cx="12" cy="12" r="3.2" fill="#ffe98c"/></svg>Fireflies</h3><p>Soft lights wander the desktop and gather wherever your pointer rests.</p></article>
+      <article class="fx solid"><h3><svg viewBox="0 0 24 24" fill="none" stroke="#dbeeff" stroke-width="1.8" stroke-linecap="round"><path d="M20 4 9 15M16 4l-5 5M20 8l-5 5"/><circle cx="7.5" cy="16.5" r="2.5" fill="#fff" stroke="none"/></svg>Starfall</h3><p>Meteors streak across and break into sparks when they hit something.</p></article>
+      <article class="fx solid"><h3><svg viewBox="0 0 24 24" fill="none" stroke="#e2b77c" stroke-width="1.8" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/></svg>Dust Storm</h3><p>Gusts of sand that pile up on your windows, a hazy sky, and the odd tumbleweed.</p></article>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="eyebrow">Questions</span>
+      <h2>Good to know</h2>
+    </div>
+    <div class="faq">
+      <div><h3>How do I build a snowman?</h3><p>With Snow on, hold Option with the pointer over fallen snow. A snowball packs and grows as you move along the pile. Let go of Option over another ball to stack it. Three in a stack become a snowman.</p></div>
+      <div><h3>What happens when I throw one?</h3><p>Move the pointer and let go of Option to throw. A soft landing settles. A hard hit on a window, widget or the edge of the screen bursts it into snow that piles up. Snowmen can be picked up and thrown too.</p></div>
+      <div><h3>Can I change the wind?</h3><p>Yes. The menu bar menu and the welcome panel have sliders for wind strength and angle. The angle tilts everything that falls, from rain to petals.</p></div>
+      <div><h3>Does the flood ever stop?</h3><p>It rises until the screen is full. Choose <strong>Drain the Water</strong> in the menu, switch flood mode off, or change the weather and it drains away.</p></div>
+      <div><h3>Will it cover my windows?</h3><p>No. Drift draws just above your wallpaper and below every window, widget and icon. Clicks always go straight through.</p></div>
+      <div><h3>Does it slow my Mac down?</h3><p>It's light. It runs at half rate in Low Power Mode and pauses when a full-screen app covers the display.</p></div>
+      <div><h3>Why does macOS warn me about it?</h3><p>Apps from the App Store or from registered developers are checked by Apple first. Drift was built by a friend and shared directly, so you confirm it yourself once.</p></div>
+      <div><h3>How do I remove it?</h3><p>Click the Drift icon in the menu bar, choose <strong>Quit Drift</strong>, then drag Drift from Applications to the Trash.</p></div>
+    </div>
+  </section>
+
+  <footer><span>Drift 1.0 · free</span><span>Made for friends with Claude Code</span></footer>
+</main>
+
+<script>
+/* ---------- download ---------- */
+(function () {
+  const btn = document.getElementById("dl"), status = document.getElementById("status");
+  let downloads = null;
+  if (window.claude && window.claude.use) {
+    window.claude.use("downloads").then(d => { downloads = d; if (!d) unavailable(); });
+  } else { unavailable(); }
+  function unavailable() {
+    status.textContent = "Downloading isn't available in this view. Open this link in your web browser instead.";
+  }
+  btn.addEventListener("click", async () => {
+    if (!downloads) { unavailable(); return; }
+    btn.disabled = true; status.textContent = "Preparing Drift.zip…";
+    try {
+      const res = await fetch("Drift.zip.b64.txt");
+      if (!res.ok) throw { code: "fetch" };
+      const b64 = (await res.text()).replace(/\s+/g, "");
+      const bin = atob(b64), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const blob = new Blob([bytes]);
+      status.textContent = "Confirm the download to save Drift.zip.";
+      await downloads.save({ filename: "Drift.zip", data: blob });
+      status.textContent = "Saved. Next, follow step 1 below.";
+    } catch (e) {
+      const c = e && e.code;
+      status.textContent = c === "declined" ? "Download cancelled. Click the button again whenever you're ready."
+        : c === "rate_limited" ? "A download prompt is already open. Finish that one first."
+        : c === "fetch" ? "Couldn't load the file. Reload the page and try again."
+        : "Downloading isn't available in this view. Open this link in your web browser instead.";
+    } finally { btn.disabled = false; }
+  });
+
+  const copy = document.getElementById("copy"), cmd = document.getElementById("cmd");
+  copy.addEventListener("click", () => {
+    const text = cmd.textContent;
+    const done = () => { copy.textContent = "Copied"; setTimeout(() => copy.textContent = "Copy", 1600); };
+    try {
+      navigator.clipboard.writeText(text).then(done, select);
+    } catch (_) { select(); }
+    function select() { const r = document.createRange(); r.selectNodeContents(cmd); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+  });
+})();
+
+/* ---------- snow that lands on the cards, never on top of them ---------- */
+(function () {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const cv = document.getElementById("sky"), c = cv.getContext("2d");
+  let W = 0, H = 0, dpr = 1;
+  const COL = 3, MAXH = 11, R = 18;
+  const solids = [...document.querySelectorAll(".solid")];
+  const piles = new Map();          // element -> {w, h: Float32Array}
+  let flakes = [];
+  let mouse = { x: -999, y: -999, vx: 0, vy: 0 };
+
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = innerWidth; H = innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize(); addEventListener("resize", () => { resize(); piles.clear(); });
+  addEventListener("pointermove", e => {
+    mouse.vx = e.clientX - mouse.x; mouse.vy = e.clientY - mouse.y; mouse.x = e.clientX; mouse.y = e.clientY;
+  });
+
+  function pileFor(el, r) {
+    let p = piles.get(el);
+    const n = Math.max(1, Math.ceil(r.width / COL));
+    if (!p || p.h.length !== n) { p = { h: new Float32Array(n) }; piles.set(el, p); }
+    return p;
+  }
+  function cap(i, n) { const d = Math.min(i, n - 1 - i) * COL + COL / 2; return MAXH * Math.max(0, Math.min(1, (d - R * .35) / (R * .9 + 4))); }
+  function drop(x, r) { const d = Math.min(x - r.left, r.right - x); if (d >= R) return 0; const k = R - Math.max(0, d); return R - Math.sqrt(Math.max(0, R * R - k * k)); }
+  function spawn(y) { const s = 1.1 + Math.random() * 2.6; return { x: Math.random() * W, y, s, vx: 0, vy: 26 + s * 16, ph: Math.random() * 6.28 }; }
+
+  const target = () => Math.round(Math.min(220, W * H / 7000));
+  for (let i = 0; i < target(); i++) flakes.push(spawn(Math.random() * H));
+
+  let last = performance.now(), t = 0;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+    const rects = solids.map(el => ({ el, r: el.getBoundingClientRect() })).filter(o => o.r.bottom > -40 && o.r.top < H + 40);
+    c.clearRect(0, 0, W, H);
+
+    // flakes
+    c.fillStyle = "rgba(255,255,255,.88)";
+    c.beginPath();
+    const wind = Math.sin(t * .13) * 14 + Math.sin(t * .41) * 6;
+    while (flakes.length < target()) flakes.push(spawn(-10));
+    for (let i = flakes.length - 1; i >= 0; i--) {
+      const f = flakes[i], px = f.x, py = f.y;
+      f.vx += ((wind + Math.sin(t * 1.3 + f.ph) * 12) - f.vx) * dt * 1.4;
+      const md = Math.hypot(f.x - mouse.x, f.y - mouse.y);
+      if (md < 70) { f.vx += mouse.vx * (1 - md / 70) * 0.4; }
+      f.x += f.vx * dt; f.y += f.vy * dt;
+      let dead = f.y > H + 10 || f.x < -20 || f.x > W + 20;
+      for (const { el, r } of rects) {
+        if (f.x < r.left || f.x >= r.right) continue;
+        const p = pileFor(el, r), n = p.h.length, j = Math.min(n - 1, Math.max(0, ((f.x - r.left) / COL) | 0));
+        const base = r.top + drop(f.x, r), surf = base - p.h[j];
+        if (f.y > surf && f.y < r.bottom) {
+          if (py <= base + .5) {           // landed on the top
+            for (let k = -2; k <= 2; k++) { const q = j + k; if (q >= 0 && q < n) p.h[q] = Math.min(cap(q, n), p.h[q] + f.s * [.25, .6, 1, .6, .25][k + 2] * .3); }
+          }
+          dead = true; break;              // never drawn over a card
+        }
+      }
+      if (dead) { flakes[i] = spawn(-10); continue; }
+      c.moveTo(f.x + f.s / 2, f.y); c.arc(f.x, f.y, f.s / 2, 0, 6.283);
+    }
+    c.fill();
+
+    // piles
+    for (const { el, r } of rects) {
+      const p = piles.get(el); if (!p) continue;
+      const n = p.h.length;
+      // brush with a fast pointer
+      if (Math.abs(mouse.vx) + Math.abs(mouse.vy) > 18 && mouse.x > r.left && mouse.x < r.right && mouse.y > r.top - 30 && mouse.y < r.top + 8) {
+        const j = ((mouse.x - r.left) / COL) | 0;
+        for (let q = Math.max(0, j - 6); q <= Math.min(n - 1, j + 6); q++) {
+          if (p.h[q] > 1) { flakes.push({ x: r.left + q * COL, y: r.top - p.h[q], s: 1.5 + Math.random() * 1.5, vx: mouse.vx * 3, vy: -60 - Math.random() * 60, ph: 0 }); p.h[q] *= .3; }
+        }
+      }
+      for (let q = 0; q < n; q++) if (p.h[q] > 0) p.h[q] = Math.max(0, p.h[q] - .02 * dt);
+      // smooth for drawing
+      let s = Array.from(p.h);
+      for (let pass = 0; pass < 3; pass++) { const o = s.slice(); for (let q = 0; q < n; q++) { const a = o[Math.max(0, q - 2)], b = o[Math.max(0, q - 1)], d = o[Math.min(n - 1, q + 1)], e = o[Math.min(n - 1, q + 2)]; s[q] = (a + 2 * b + 3 * o[q] + 2 * d + e) / 9; } }
+      if (!s.some(v => v > .3)) continue;
+      c.save();
+      c.beginPath();
+      c.moveTo(r.left, r.top + drop(r.left, r));
+      let prev = null;
+      for (let q = 0; q < n; q++) {
+        const x = r.left + (q + .5) * COL, y = r.top + drop(x, r) - s[q];
+        if (!prev) c.lineTo(x, y); else c.quadraticCurveTo(prev.x, prev.y, (prev.x + x) / 2, (prev.y + y) / 2);
+        prev = { x, y };
+      }
+      c.lineTo(r.right, r.top + drop(r.right, r));
+      for (let q = n - 1; q >= 0; q--) { const x = r.left + (q + .5) * COL; c.lineTo(x, r.top + drop(x, r)); }
+      c.closePath();
+      c.shadowColor = "rgba(219,238,255,.75)"; c.shadowBlur = 8;
+      const g = c.createLinearGradient(0, r.top - MAXH, 0, r.top + 2);
+      g.addColorStop(0, "#ffffff"); g.addColorStop(.5, "#eef3fd"); g.addColorStop(1, "#c9d8f1");
+      c.fillStyle = g; c.fill();
+      c.restore();
+    }
+    mouse.vx *= .8; mouse.vy *= .8;
+    if (!reduce) requestAnimationFrame(frame);
+  }
+  if (reduce) { frame(performance.now()); } else { requestAnimationFrame(frame); }
+})();
+</script>
