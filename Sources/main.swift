@@ -495,21 +495,23 @@ final class Simulation {
                 p.radius = w.radius
                 let dx = r.minX - p.rect.minX, dy = r.maxY - p.rect.maxY, dw = r.width - p.rect.width
                 if abs(dx) > 0.5 || abs(dy) > 0.5 || abs(dw) > 0.5 {
-                    let speed = hypot(dx, dy) / max(dt, 1e-3)
-                    // A gentle drag carries the snow along; only a hard flick throws it off.
-                    if abs(dw) > 2 || speed > 1150 {
-                        p.reset(r)          // keep geometry fresh first …
-                        spill(p, from: r, vx: dx / dt, vy: dy / dt, old: true)
-                        carryBodies(w.id, dx: dx, dy: dy, vx: dx / dt, vy: dy / dt)
+                    let vx = dx / dt, vy = dy / dt
+                    // A hard upward thrust launches the snow (it flies up, then falls back and re-piles);
+                    // a resize can't keep its columns. Everything else — all side-to-side dragging — is
+                    // inertial: the snow keeps its place in the world while the window slides under it.
+                    if abs(dw) > 2 || vy > 800 {
+                        p.reset(r)
+                        spill(p, from: r, vx: vx, vy: vy, old: true)
+                        carryBodies(w.id, dx: dx, dy: dy, vx: vx, vy: vy)
                     } else {
                         pendingH[p.id] = nil
                         let oldMinX = p.rect.minX
-                        p.carry(to: r)                        // base follows the window
-                        // snow has inertia: it stays in world space and slides off the trailing edge
+                        p.carry(to: r)                        // base follows the window vertically
+                        // horizontal inertia: snow holds world position and sheds off the trailing edge
                         p.slide(windowDX: r.minX - oldMinX) { sx, amt in
-                            for _ in 0..<min(30, Int(amt / 3) + 1) {
+                            for _ in 0..<min(26, Int(amt / 4) + 1) {
                                 var q = P(x: sx + rnd(-1.5, 1.5), y: r.maxY + rnd(0, amt),
-                                          vx: rnd(-25, 25), vy: rnd(-20, 15), size: rnd(1.4, 3))
+                                          vx: rnd(-20, 20), vy: rnd(-15, 15), size: rnd(1.4, 3))
                                 q.ignoreID = w.id; q.ignoreT = 0.2
                                 particles.append(q)
                             }
