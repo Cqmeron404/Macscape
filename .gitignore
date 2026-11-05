@@ -1,0 +1,8 @@
+# Compiled build outputs (produced by build.sh)
+build/
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.build/
