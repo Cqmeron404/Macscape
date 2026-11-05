@@ -13,7 +13,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" build/obj
 # --- compile both architectures, then merge ---
 for ARCH in arm64 x86_64; do
   swiftc -O -enforce-exclusivity=unchecked -swift-version 5 -target "$ARCH-apple-macos14.0" \
-    -framework Cocoa -framework QuartzCore -framework ServiceManagement -framework SwiftUI \
+    -framework Cocoa -framework QuartzCore -framework ServiceManagement \
     Sources/*.swift -o "build/obj/Drift-$ARCH"
 done
 lipo -create build/obj/Drift-arm64 build/obj/Drift-x86_64 -output "$APP/Contents/MacOS/Drift"

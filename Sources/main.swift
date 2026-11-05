@@ -55,10 +55,6 @@ enum Settings {
         get { d.object(forKey: "solidIcons") as? Bool ?? true }
         set { d.set(newValue, forKey: "solidIcons") }
     }
-    static var onboarded: Bool {
-        get { d.bool(forKey: "onboarded") }
-        set { d.set(newValue, forKey: "onboarded") }
-    }
     /// 0 = calm … 3 = gale. Scales gusts for every effect.
     static var windStrength: Double {
         get { d.object(forKey: "windStrength") as? Double ?? 1 }
@@ -1300,7 +1296,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         status.menu = menu
         updateIcon()
         rebuild()
-        if !Settings.onboarded { showWelcome() }
         NotificationCenter.default.addObserver(self, selector: #selector(screensChanged),
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(screensChanged),
@@ -1393,9 +1388,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
         menu.addItem(.separator())
-        let welcome = NSMenuItem(title: "Welcome & Setup…", action: #selector(showWelcome), keyEquivalent: ",")
-        welcome.target = self
-        menu.addItem(welcome)
         let quit = NSMenuItem(title: "Quit Drift", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
     }
@@ -1409,14 +1401,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func setIntensity(_ s: NSMenuItem) {
         if let v = s.representedObject as? Double { Settings.intensity = v }
-    }
-
-    @objc func showWelcome() {
-        WelcomeWindow.show { [weak self] in
-            guard let self else { return }
-            if Settings.paused { Settings.paused = false; self.rebuild() }
-            self.updateIcon()
-        }
     }
 
     @objc func toggleIcons() {
