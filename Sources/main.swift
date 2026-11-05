@@ -1,4 +1,4 @@
-// Drift — desktop weather that lives *behind* your windows.
+// Macscapes — desktop weather that lives *behind* your windows.
 // Particles treat every app window as a solid object: they land on window tops,
 // slide down window sides, and fly off when you drag a window — but they are drawn
 // at desktop level, so they can never cover or block what's in a window.
@@ -1311,14 +1311,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func updateIcon() {
         let name = Settings.paused ? "pause.circle" : Settings.effect.symbol
-        let img = NSImage(systemSymbolName: name, accessibilityDescription: "Drift")
+        let img = NSImage(systemSymbolName: name, accessibilityDescription: "Macscapes")
         img?.isTemplate = true
         status.button?.image = img
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        let head = NSMenuItem(title: "Drift", action: nil, keyEquivalent: "")
+        let head = NSMenuItem(title: "Macscapes", action: nil, keyEquivalent: "")
         head.isEnabled = false
         menu.addItem(head)
         for e in Effect.allCases {
@@ -1388,7 +1388,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit Drift", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit Macscapes", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
     }
 

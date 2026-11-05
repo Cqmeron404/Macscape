@@ -1,33 +1,31 @@
 #!/bin/zsh
-# Builds Drift.app (universal: Apple silicon + Intel), packages Drift.dmg + Drift.zip, and launches it.
+# Builds Macscapes.app (universal: Apple silicon + Intel), packages Macscapes.dmg + Macscapes.zip, and launches it.
 # Usage: ./build.sh            build + launch
 #        ./build.sh --no-run   build only
 set -euo pipefail
 cd "$(dirname "$0")"
 
 VERSION="1.0"
-APP="build/Drift.app"
-rm -rf build/Drift.app build/obj
+APP="build/Macscapes.app"
+rm -rf build/Macscapes.app build/obj
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" build/obj
 
 # --- compile both architectures, then merge ---
 for ARCH in arm64 x86_64; do
   swiftc -O -enforce-exclusivity=unchecked -swift-version 5 -target "$ARCH-apple-macos14.0" \
     -framework Cocoa -framework QuartzCore -framework ServiceManagement \
-    Sources/*.swift -o "build/obj/Drift-$ARCH"
+    Sources/*.swift -o "build/obj/Macscapes-$ARCH"
 done
-lipo -create build/obj/Drift-arm64 build/obj/Drift-x86_64 -output "$APP/Contents/MacOS/Drift"
+lipo -create build/obj/Macscapes-arm64 build/obj/Macscapes-x86_64 -output "$APP/Contents/MacOS/Macscapes"
 
 # --- icon ---
-if [[ ! -f build/AppIcon.icns || tools/make_icon.swift -nt build/AppIcon.icns ]]; then
-  swift tools/make_icon.swift build/icon_1024.png
-  ICONSET=build/AppIcon.iconset; rm -rf $ICONSET; mkdir -p $ICONSET
-  for s in 16 32 128 256 512; do
-    sips -z $s $s build/icon_1024.png --out $ICONSET/icon_${s}x${s}.png >/dev/null
-    sips -z $((s*2)) $((s*2)) build/icon_1024.png --out $ICONSET/icon_${s}x${s}@2x.png >/dev/null
-  done
-  iconutil -c icns $ICONSET -o build/AppIcon.icns
-fi
+cp Assets/TidalRidge.png build/icon_1024.png
+ICONSET=build/AppIcon.iconset; rm -rf $ICONSET; mkdir -p $ICONSET
+for s in 16 32 128 256 512; do
+  sips -z $s $s build/icon_1024.png --out $ICONSET/icon_${s}x${s}.png >/dev/null
+  sips -z $((s*2)) $((s*2)) build/icon_1024.png --out $ICONSET/icon_${s}x${s}@2x.png >/dev/null
+done
+iconutil -c icns $ICONSET -o build/AppIcon.icns
 cp build/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -35,10 +33,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Drift</string>
-  <key>CFBundleDisplayName</key><string>Drift</string>
+  <key>CFBundleName</key><string>Macscapes</string>
+  <key>CFBundleDisplayName</key><string>Macscapes</string>
   <key>CFBundleIdentifier</key><string>com.camerongroff.drift</string>
-  <key>CFBundleExecutable</key><string>Drift</string>
+  <key>CFBundleExecutable</key><string>Macscapes</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
@@ -47,7 +45,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSApplicationCategoryType</key><string>public.app-category.entertainment</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSHumanReadableCopyright</key><string>Drift — weather for your desktop</string>
+  <key>NSHumanReadableCopyright</key><string>Macscapes — weather for your desktop</string>
 </dict>
 </plist>
 PLIST
@@ -59,17 +57,19 @@ codesign --force --options runtime --timestamp=none --sign "${IDENTITY:--}" "$AP
 echo "Signed with: ${IDENTITY:-ad-hoc}"
 
 # --- share packages ---
-rm -f build/Drift.zip build/Drift.dmg
-ditto -c -k --keepParent "$APP" build/Drift.zip
+rm -f build/Macscapes.zip build/Macscapes.dmg
+ditto -c -k --keepParent "$APP" build/Macscapes.zip
+sips -z 256 256 build/icon_1024.png --out site/icon.png >/dev/null
+base64 -i build/Macscapes.zip -o site/Macscapes.zip.b64.txt
 STAGE=build/dmg; rm -rf $STAGE; mkdir -p $STAGE
 cp -R "$APP" $STAGE/
 ln -s /Applications $STAGE/Applications
-hdiutil create -volname "Drift" -srcfolder $STAGE -ov -format UDZO build/Drift.dmg >/dev/null
+hdiutil create -volname "Macscapes" -srcfolder $STAGE -ov -format UDZO build/Macscapes.dmg >/dev/null
 rm -rf $STAGE
 echo "Built $PWD/$APP"
-echo "Packages: $PWD/build/Drift.dmg  $PWD/build/Drift.zip"
+echo "Packages: $PWD/build/Macscapes.dmg  $PWD/build/Macscapes.zip"
 
 if [[ "${1:-}" != "--no-run" ]]; then
-  pkill -x Drift 2>/dev/null || true
+  pkill -x Macscapes 2>/dev/null || true
   open "$APP"
 fi

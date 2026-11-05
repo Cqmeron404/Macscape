@@ -1,4 +1,4 @@
-// Drift — flood mode: rain collects at the bottom of the screen and slowly rises.
+// Macscapes — flood mode: rain collects at the bottom of the screen and slowly rises.
 // The water is drawn behind every window like everything else, so it never covers your work.
 
 import Cocoa

@@ -1,4 +1,4 @@
-// Drift — snowballs and snowmen.
+// Macscapes — snowballs and snowmen.
 //
 // Hold ⌥ Option with the pointer over fallen snow to pack a snowball (it grows as you
 // move along the pile). Move and release Option to throw it. Slow landings settle; fast

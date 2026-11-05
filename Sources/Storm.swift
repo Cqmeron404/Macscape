@@ -1,4 +1,4 @@
-// Drift — thunderstorm lightning, tornado funnel, and flying storm debris.
+// Macscapes — thunderstorm lightning, tornado funnel, and flying storm debris.
 
 import Cocoa
 
