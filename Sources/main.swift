@@ -194,7 +194,7 @@ final class DesktopIconTracker {
 
 // MARK: - Model
 
-enum Kind { case main, splash, spark, debris }   // debris hue: 0 carrot, 1 hat, 2 stick, 3 coal
+enum Kind { case main, splash, spark, debris, runoff }   // debris hue: 0 carrot, 1 hat, 2 stick, 3 coal
 
 // MARK: - Snowballs & snowmen
 
@@ -259,10 +259,31 @@ final class Pile {
     var rest: [Rest] = []
     let isGround: Bool
     var radius: CGFloat
+    let seed = rnd(0, 100)
+    var capNoise: [CGFloat] = []       // per-column height multiplier, so snow lies unevenly
 
     init(id: Int, rect: CGRect, radius: CGFloat = 0, ground: Bool = false) {
         self.id = id; self.rect = rect; self.isGround = ground; self.radius = radius
         h = Array(repeating: 0, count: max(1, Int(ceil(rect.width / Pile.col))))
+        buildNoise()
+    }
+
+    /// Layered value noise in roughly [0.55, 1.3] so drifts build to varied heights, not a flat line.
+    func buildNoise() {
+        capNoise = (0..<h.count).map { i in
+            let x = CGFloat(i)
+            let v = 0.5
+                + 0.26 * sin(x * 0.055 + seed)
+                + 0.15 * sin(x * 0.17 + seed * 1.7)
+                + 0.09 * sin(x * 0.41 + seed * 2.9)
+            return clamp(0.5 + v * 0.62, 0.5, 1.3)
+        }
+    }
+
+    /// Slow drag: ride the snow along with the window instead of destroying it.
+    func carry(to r: CGRect) {
+        if max(1, Int(ceil(r.width / Pile.col))) == h.count { rect = r }
+        else { reset(r) }   // width changed — can't map columns cleanly
     }
 
     /// How far the rounded top corner dips below the flat top edge at x.
@@ -281,17 +302,19 @@ final class Pile {
         rect = r
         h = Array(repeating: 0, count: max(1, Int(ceil(r.width / Pile.col))))
         rest.removeAll()
+        buildNoise()
     }
 
     @inline(__always) func index(_ x: CGFloat) -> Int { clamp(Int((x - rect.minX) / Pile.col), 0, h.count - 1) }
     @inline(__always) func height(at x: CGFloat) -> CGFloat { h[index(x)] }
 
     func cap(_ i: Int, _ maxH: CGFloat) -> CGFloat {
-        if isGround { return maxH }
+        let noise = capNoise.isEmpty ? 1 : capNoise[min(i, capNoise.count - 1)]
+        if isGround { return maxH * noise }
         // Thin out over the curved corners — snow can't stack on a steep slope.
         let d = CGFloat(min(i, h.count - 1 - i)) * Pile.col + Pile.col / 2
         let R = max(radius, 4)
-        return maxH * clamp((d - R * 0.35) / (R * 0.9 + 4), 0, 1)
+        return maxH * noise * clamp((d - R * 0.35) / (R * 0.9 + 4), 0, 1)
     }
 
     func addSnow(x: CGFloat, amt: CGFloat, maxH: CGFloat) {
@@ -318,12 +341,12 @@ final class Pile {
         return true
     }
 
-    func relax() {
+    func relax(threshold: CGFloat = 1.6, strength: CGFloat = 0.3) {
         guard h.count > 1 else { return }
         for i in 1..<h.count {
             let d = h[i] - h[i - 1]
-            if abs(d) > 1.6 {
-                let m = (abs(d) - 1.6) * 0.3 * (d > 0 ? 1 : -1)
+            if abs(d) > threshold {
+                let m = (abs(d) - threshold) * strength * (d > 0 ? 1 : -1)
                 h[i] -= m; h[i - 1] += m
             }
         }
@@ -365,6 +388,7 @@ final class Simulation {
     var debrisAcc: CGFloat = 0
     var water: CGFloat = -12
     var ripples: [(x: CGFloat, t: CGFloat)] = []
+    var fish: [Fish] = []
     var secondFlash: CGFloat = -1
     var gen = -1
     var relaxTick = 0
@@ -388,6 +412,8 @@ final class Simulation {
         heldBall = nil; heldMan = nil; optionDown = false
         for p in piles.values { p.reset(p.rect) }
         ground.reset(ground.rect)
+        fish.removeAll()
+        water = -12; ripples.removeAll()
     }
 
     /// Effects whose fallen material is a smooth heightmap (snow, sand).
@@ -441,9 +467,17 @@ final class Simulation {
                 p.radius = w.radius
                 let dx = r.minX - p.rect.minX, dy = r.maxY - p.rect.maxY, dw = r.width - p.rect.width
                 if abs(dx) > 0.5 || abs(dy) > 0.5 || abs(dw) > 0.5 {
-                    p.reset(r)          // keep geometry fresh first …
-                    spill(p, from: r, vx: dx / dt, vy: dy / dt, old: true)
-                    carryBodies(w.id, dx: dx, dy: dy, vx: dx / dt, vy: dy / dt)
+                    let speed = hypot(dx, dy) / max(dt, 1e-3)
+                    // A gentle drag carries the snow along; only a hard flick throws it off.
+                    if abs(dw) > 2 || speed > 1150 {
+                        p.reset(r)          // keep geometry fresh first …
+                        spill(p, from: r, vx: dx / dt, vy: dy / dt, old: true)
+                        carryBodies(w.id, dx: dx, dy: dy, vx: dx / dt, vy: dy / dt)
+                    } else {
+                        pendingH[p.id] = nil
+                        p.carry(to: r)                        // snow rides along, not deleted
+                        carryBodies(w.id, dx: dx, dy: dy, vx: 0, vy: 0)
+                    }
                 }
                 newOrder.append(p)
             } else {
@@ -600,6 +634,9 @@ final class Simulation {
                 p.vy -= 900 * dt
             case (_, .debris):
                 p.vy -= 700 * dt; p.rot += p.vrot * dt
+            case (_, .runoff):
+                p.vy -= 1350 * dt                            // falls fast once off the edge
+                p.vx += (abs(p.vy) * slant - p.vx) * dt * 2   // leans with the wind angle
             case (_, .spark):
                 p.vy -= 320 * dt; p.vx *= 1 - 0.8 * dt
             case (.snow, _):
@@ -699,7 +736,8 @@ final class Simulation {
         let doRelax = relaxTick % 4 == 0
         for pile in order {
             if heaped {
-                if doRelax { pile.relax() }
+                // Gentler smoothing on the ground so snow keeps its uneven drifts.
+                if doRelax { pile.relax(threshold: pile.isGround ? 2.4 : 1.6, strength: pile.isGround ? 0.16 : 0.3) }
                 pile.decay((effect == .dust ? 0.06 : 0.035) * dt)
             } else if !pile.rest.isEmpty {
                 pile.decay(0.07 * dt)
@@ -713,6 +751,20 @@ final class Simulation {
         if p.kind == .debris {         // hats, carrots and sticks come to rest on the snow
             var q = p; q.y = surf + 1; q.vx = 0; q.vy = 0; q.vrot = 0
             out.append(q); return
+        }
+        if p.kind == .runoff {         // water running off an item: slide to the edge, then fall
+            if pile.isGround {
+                out.append(P(x: p.x, y: surf + 1, vx: rnd(-40, 40), vy: rnd(30, 90),
+                             size: rnd(0.7, 1.1), maxLife: 0.3, kind: .splash))
+            } else {
+                let left = (p.x - pile.rect.minX) < (pile.rect.maxX - p.x)
+                var q = p
+                q.x = left ? pile.rect.minX - 1 : pile.rect.maxX + 1
+                q.y = surf; q.vx = left ? -18 : 18; q.vy = 0
+                q.ignoreID = pile.id; q.ignoreT = 0.25
+                out.append(q)
+            }
+            return
         }
         guard p.kind == .main else { return }
         let maxH = pile.isGround ? mh.ground : mh.window
@@ -743,9 +795,18 @@ final class Simulation {
                 }
                 return
             }
-            for _ in 0..<Int.random(in: 1...3) {
+            // a splash where it hits …
+            for _ in 0..<Int.random(in: 1...2) {
                 out.append(P(x: p.x, y: surf + 1, vx: rnd(-70, 70), vy: rnd(60, 150), size: rnd(0.8, 1.4),
                              maxLife: 0.45, kind: .splash))
+            }
+            // … and on a window, some of it runs off the edge and trickles down to the bottom
+            if !pile.isGround && CGFloat.random(in: 0...1) < 0.5 {
+                let left = (p.x - pile.rect.minX) < (pile.rect.maxX - p.x)
+                var q = P(x: left ? pile.rect.minX - 1 : pile.rect.maxX + 1, y: surf,
+                          vx: left ? -16 : 16, vy: 0, size: rnd(1.6, 2.6), kind: .runoff)
+                q.ignoreID = pile.id; q.ignoreT = 0.2
+                out.append(q)
             }
         case .starfall:
             for _ in 0..<Int.random(in: 10...18) {
@@ -807,7 +868,7 @@ final class Simulation {
                 tries += 1
                 let pt = CGPoint(x: rnd(0, bounds.width), y: rnd(groundY + 10, bounds.maxY - 30))
                 if isFree(pt) {
-                    particles.append(P(x: pt.x, y: pt.y, vx: rnd(-20, 20), vy: rnd(-20, 20), size: rnd(1.6, 3)))
+                    particles.append(P(x: pt.x, y: pt.y, vx: rnd(-20, 20), vy: rnd(-20, 20), size: rnd(0.9, 1.8)))
                     live += 1
                 }
             }
@@ -866,7 +927,7 @@ final class Simulation {
         }
         if effect == .tornado {    // wind-blown debris from the upwind side
             let dir: CGFloat = (Settings.windAngle >= 0) ? 1 : -1
-            debrisAcc += dt * 5 * k * (tornado == nil ? 1 : 2.5)
+            debrisAcc += dt * 9 * k * (tornado == nil ? 1 : 2.8)
             while debrisAcc >= 1 {
                 debrisAcc -= 1
                 var p = P(x: dir > 0 ? rnd(-40, -10) : bounds.maxX + rnd(10, 40), y: rnd(groundY + 20, bounds.maxY),
@@ -901,6 +962,12 @@ final class Simulation {
         CGColor(red: 0.95, green: 0.76, blue: 0.27, alpha: 1),
         CGColor(red: 0.55, green: 0.30, blue: 0.12, alpha: 1),
     ]
+    static let greenLeaf: [CGColor] = [
+        CGColor(red: 0.30, green: 0.62, blue: 0.22, alpha: 1),
+        CGColor(red: 0.42, green: 0.72, blue: 0.28, alpha: 1),
+        CGColor(red: 0.22, green: 0.50, blue: 0.20, alpha: 1),
+        CGColor(red: 0.55, green: 0.78, blue: 0.33, alpha: 1),
+    ]
     static let spark: [CGColor] = [
         CGColor(red: 1, green: 0.95, blue: 0.8, alpha: 1),
         CGColor(red: 1, green: 0.75, blue: 0.4, alpha: 1),
@@ -932,11 +999,11 @@ final class Simulation {
     }
 
     func drawLeaf(_ c: CGContext, _ x: CGFloat, _ y: CGFloat, _ s: CGFloat, _ rot: CGFloat,
-                  _ flip: CGFloat, _ hue: Int, _ a: CGFloat) {
+                  _ flip: CGFloat, _ hue: Int, _ a: CGFloat, green: Bool = false) {
         c.saveGState()
         c.translateBy(x: x, y: y); c.rotate(by: rot); c.scaleBy(x: 1, y: flip)
         c.setAlpha(a)
-        let col = Simulation.leaf[hue % 5]
+        let col = green ? Simulation.greenLeaf[hue % 4] : Simulation.leaf[hue % 5]
         c.setFillColor(col)
         c.move(to: CGPoint(x: -s, y: 0))
         c.addQuadCurve(to: CGPoint(x: s, y: 0), control: CGPoint(x: -s * 0.1, y: s * 0.75))
@@ -1099,6 +1166,8 @@ final class Simulation {
                     c.fillEllipse(in: CGRect(x: p.x - p.size, y: p.y - p.size, width: p.size * 2, height: p.size * 2))
                 } else if p.kind == .splash {
                     sp.addEllipse(in: CGRect(x: p.x - p.size, y: p.y - p.size, width: p.size * 2, height: p.size * 2))
+                } else if p.kind == .runoff {   // a rounded droplet trickling down
+                    sp.addEllipse(in: CGRect(x: p.x - p.size * 0.6, y: p.y - p.size, width: p.size * 1.2, height: p.size * 2))
                 } else {
                     let sp = max(1, hypot(p.vx, p.vy))
                     path.move(to: CGPoint(x: p.x, y: p.y))
@@ -1117,7 +1186,7 @@ final class Simulation {
         case .fireflies:
             for p in particles {
                 let b = pow(0.5 + 0.5 * sin(time * 1.7 + p.phase * 5), 2.2)
-                let rad = p.size * 7
+                let rad = p.size * 5
                 c.saveGState()
                 c.setAlpha(0.15 + 0.85 * b)
                 c.drawRadialGradient(Simulation.glow, startCenter: CGPoint(x: p.x, y: p.y), startRadius: 0,

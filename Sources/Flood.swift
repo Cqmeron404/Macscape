@@ -3,6 +3,16 @@
 
 import Cocoa
 
+/// A fish or jellyfish that lives in the flood water.
+struct Fish {
+    var x: CGFloat, y: CGFloat, vx: CGFloat
+    var size: CGFloat
+    var hue: Int           // body colour
+    var phase: CGFloat
+    var kind: Int          // 0 = fish, 1 = jellyfish
+    var dir: CGFloat { vx >= 0 ? 1 : -1 }
+}
+
 extension Simulation {
     /// Water surface height at x (local coords), with rolling waves and ripples.
     func waterY(_ x: CGFloat) -> CGFloat {
@@ -22,9 +32,114 @@ extension Simulation {
             water -= dt * 30          // drains away when the rain stops or flood mode is off
         }
         ripples.removeAll { time - $0.t > 1.3 }
+        stepFish(dt)
     }
 
-    func drainWater() { water = -12; ripples.removeAll() }
+    func drainWater() { water = -12; ripples.removeAll(); fish.removeAll() }
+
+    // MARK: fish & sea creatures
+
+    func stepFish(_ dt: CGFloat) {
+        let depth = water - groundY
+        guard water > 0, depth > 36 else { if !fish.isEmpty { fish.removeAll() }; return }
+        let target = min(14, max(1, Int(depth * bounds.width / 90000)))
+        while fish.count < target {
+            let jelly = Int.random(in: 0...4) == 0            // ~20% jellyfish
+            let y = rnd(groundY + 14, max(groundY + 16, water - 18))
+            let dir: CGFloat = Bool.random() ? 1 : -1
+            fish.append(Fish(x: rnd(0, bounds.width),
+                             y: y,
+                             vx: jelly ? 0 : dir * rnd(20, 50),
+                             size: jelly ? rnd(9, 16) : rnd(6, 15),
+                             hue: Int.random(in: 0...3),
+                             phase: rnd(0, .pi * 2),
+                             kind: jelly ? 1 : 0))
+        }
+        while fish.count > target { fish.removeLast() }
+
+        for i in fish.indices {
+            var f = fish[i]
+            if f.kind == 0 {                                  // fish swim side to side
+                f.x += f.vx * dt
+                f.y += sin(time * 2 + f.phase) * 8 * dt
+                if f.x < f.size { f.x = f.size; f.vx = abs(f.vx) }
+                if f.x > bounds.width - f.size { f.x = bounds.width - f.size; f.vx = -abs(f.vx) }
+                if CGFloat.random(in: 0...1) < dt * 0.18 { f.vx = -f.vx }   // occasional turn
+            } else {                                          // jellyfish bob and drift
+                f.y += sin(time * 1.1 + f.phase) * 16 * dt
+                f.x += sin(time * 0.5 + f.phase * 1.3) * 12 * dt
+                f.x = clamp(f.x, f.size, bounds.width - f.size)
+            }
+            let top = waterY(f.x) - f.size * 0.9, bot = groundY + f.size * 0.6
+            if f.y > top { f.y = top }
+            if f.y < bot { f.y = bot }
+            fish[i] = f
+        }
+    }
+
+    static let fishCols: [CGColor] = [
+        CGColor(red: 0.98, green: 0.55, blue: 0.20, alpha: 0.9),   // clownfish orange
+        CGColor(red: 0.80, green: 0.84, blue: 0.90, alpha: 0.85),  // silver
+        CGColor(red: 0.30, green: 0.68, blue: 0.95, alpha: 0.85),  // blue
+        CGColor(red: 0.96, green: 0.84, blue: 0.32, alpha: 0.9),   // yellow
+    ]
+
+    func drawCreatures(_ c: CGContext) {
+        for f in fish {
+            if f.kind == 0 { drawFish(c, f) } else { drawJelly(c, f) }
+        }
+    }
+
+    func drawFish(_ c: CGContext, _ f: Fish) {
+        let s = f.size
+        c.saveGState()
+        c.translateBy(x: f.x, y: f.y); c.scaleBy(x: f.dir, y: 1)
+        // tail
+        c.setFillColor(Simulation.fishCols[f.hue % 4].copy(alpha: 0.6)!)
+        c.move(to: CGPoint(x: -s * 0.7, y: 0))
+        c.addLine(to: CGPoint(x: -s * 1.25, y: s * 0.5))
+        c.addLine(to: CGPoint(x: -s * 1.25, y: -s * 0.5))
+        c.closePath(); c.fillPath()
+        // body
+        c.setFillColor(Simulation.fishCols[f.hue % 4])
+        c.fillEllipse(in: CGRect(x: -s * 0.8, y: -s * 0.45, width: s * 1.7, height: s * 0.9))
+        // top fin
+        c.setFillColor(Simulation.fishCols[f.hue % 4].copy(alpha: 0.55)!)
+        c.move(to: CGPoint(x: -s * 0.2, y: s * 0.35))
+        c.addQuadCurve(to: CGPoint(x: s * 0.4, y: s * 0.3), control: CGPoint(x: s * 0.1, y: s * 0.85))
+        c.fillPath()
+        // eye
+        c.setFillColor(CGColor(red: 0.08, green: 0.1, blue: 0.14, alpha: 0.95))
+        c.fillEllipse(in: CGRect(x: s * 0.48, y: -s * 0.08, width: s * 0.2, height: s * 0.2))
+        c.restoreGState()
+    }
+
+    func drawJelly(_ c: CGContext, _ f: Fish) {
+        let s = f.size
+        let pulse = 1 + 0.12 * sin(time * 3 + f.phase)
+        c.saveGState()
+        c.translateBy(x: f.x, y: f.y)
+        c.setFillColor(CGColor(red: 0.74, green: 0.55, blue: 0.95, alpha: 0.42))
+        // bell (upper half-ellipse)
+        c.move(to: CGPoint(x: -s * pulse, y: 0))
+        c.addCurve(to: CGPoint(x: s * pulse, y: 0),
+                   control1: CGPoint(x: -s * pulse, y: s * 1.3),
+                   control2: CGPoint(x: s * pulse, y: s * 1.3))
+        c.closePath(); c.fillPath()
+        // tentacles
+        c.setStrokeColor(CGColor(red: 0.8, green: 0.6, blue: 1, alpha: 0.35)); c.setLineWidth(1.2); c.setLineCap(.round)
+        for k in 0..<5 {
+            let tx = (-s * 0.7) + CGFloat(k) * s * 0.35
+            c.move(to: CGPoint(x: tx, y: 0))
+            for seg in 1...4 {
+                let yy = -CGFloat(seg) * s * 0.4
+                let xx = tx + sin(time * 4 + f.phase + CGFloat(seg) * 0.9 + CGFloat(k)) * s * 0.18
+                c.addLine(to: CGPoint(x: xx, y: yy))
+            }
+        }
+        c.strokePath()
+        c.restoreGState()
+    }
 
     /// Handles a particle at/below the water line. Returns true when the particle was consumed or placed.
     func handleWater(_ p: inout P, py: CGFloat, into out: inout [P]) -> Bool {
@@ -36,6 +151,11 @@ extension Simulation {
             p.rot += sin(time * 2 + p.phase) * 0.01
             if !p.maxLife.isFinite { p.maxLife = p.life + 30 }
             out.append(p)
+            return true
+        }
+        if p.kind == .runoff {                            // trickle reaches the water: absorbed
+            if ripples.count < 90 { ripples.append((x: p.x, t: time)) }
+            water = min(bounds.maxY - 6, water + 0.02)
             return true
         }
         if p.kind == .main && py >= wy - 1 {
@@ -79,6 +199,9 @@ extension Simulation {
             c.addLine(to: CGPoint(x: sx - 60, y: max(0, water - 380))); c.addLine(to: CGPoint(x: sx - 140, y: max(0, water - 380)))
             c.fillPath()
         }
+        // fish and sea creatures (clipped to the water body)
+        drawCreatures(c)
+
         // bubbles
         c.setStrokeColor(CGColor(red: 0.85, green: 0.95, blue: 1, alpha: 0.35)); c.setLineWidth(1)
         let n = Int(w / 55)

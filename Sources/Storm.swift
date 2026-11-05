@@ -120,7 +120,8 @@ final class Tornado {
 }
 
 extension Simulation {
-    func randomDebrisHue() -> Int { [20, 21, 22, 23, 24, 20, 22, 30, 30, 31].randomElement()! }
+    // Hues: 20–23 green leaves, 30 twig, 31 paper scrap, 32 plastic bag, 33 crushed can, 34 newspaper.
+    func randomDebrisHue() -> Int { [20, 21, 22, 30, 31, 31, 32, 32, 33, 34, 34, 31, 32, 23].randomElement()! }
 
     // MARK: lightning
 
@@ -219,12 +220,14 @@ extension Simulation {
             }
         }
         // kick debris up from the ground
-        if CGFloat.random(in: 0...1) < dt * 14 * tw.strength {
+        if CGFloat.random(in: 0...1) < dt * 24 * tw.strength {
             let bx = tw.axisX(groundY, time)
-            var q = P(x: bx + rnd(-40, 40), y: groundY + 6, vx: rnd(-120, 120), vy: rnd(250, 480),
-                      size: rnd(5, 9), hue: randomDebrisHue())
-            q.rot = rnd(0, .pi * 2); q.vrot = rnd(-12, 12)
-            particles.append(q)
+            for _ in 0..<Int.random(in: 1...2) {
+                var q = P(x: bx + rnd(-50, 50), y: groundY + 6, vx: rnd(-120, 120), vy: rnd(250, 480),
+                          size: rnd(5, 9), hue: randomDebrisHue())
+                q.rot = rnd(0, .pi * 2); q.vrot = rnd(-12, 12)
+                particles.append(q)
+            }
         }
     }
 
@@ -232,17 +235,46 @@ extension Simulation {
 
     func drawStormDebris(_ c: CGContext, _ x: CGFloat, _ y: CGFloat, _ s: CGFloat, _ rot: CGFloat,
                          _ flip: CGFloat, _ hue: Int, _ a: CGFloat) {
-        if hue >= 20 && hue <= 24 { drawLeaf(c, x, y, s, rot, flip, hue - 20, a); return }
+        if hue >= 20 && hue <= 24 { drawLeaf(c, x, y, s, rot, flip, hue - 20, a, green: true); return }
         c.saveGState()
         c.translateBy(x: x, y: y); c.rotate(by: rot); c.scaleBy(x: 1, y: flip == 0 ? 1 : flip)
         c.setAlpha(a)
-        if hue == 30 {      // twig
+        switch hue {
+        case 30:            // twig
             c.setStrokeColor(CGColor(red: 0.40, green: 0.26, blue: 0.14, alpha: 1))
             c.setLineWidth(1.5); c.setLineCap(.round)
             c.move(to: CGPoint(x: -s * 0.9, y: 0)); c.addLine(to: CGPoint(x: s * 0.9, y: s * 0.1))
             c.move(to: CGPoint(x: s * 0.2, y: s * 0.05)); c.addLine(to: CGPoint(x: s * 0.55, y: s * 0.45))
             c.strokePath()
-        } else {            // scrap of paper
+        case 32:            // crumpled plastic bag — translucent, billowing
+            c.setFillColor(CGColor(red: 0.90, green: 0.93, blue: 0.96, alpha: 0.5))
+            c.move(to: CGPoint(x: -s * 0.9, y: -s * 0.2))
+            c.addQuadCurve(to: CGPoint(x: 0, y: s), control: CGPoint(x: -s * 0.7, y: s * 0.9))
+            c.addQuadCurve(to: CGPoint(x: s * 0.9, y: -s * 0.2), control: CGPoint(x: s * 0.7, y: s * 0.9))
+            c.addQuadCurve(to: CGPoint(x: 0, y: -s * 0.6), control: CGPoint(x: s * 0.4, y: -s * 0.7))
+            c.addQuadCurve(to: CGPoint(x: -s * 0.9, y: -s * 0.2), control: CGPoint(x: -s * 0.4, y: -s * 0.7))
+            c.fillPath()
+            c.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.4)); c.setLineWidth(0.6)
+            c.move(to: CGPoint(x: -s * 0.3, y: 0)); c.addLine(to: CGPoint(x: s * 0.1, y: s * 0.4)); c.strokePath()
+        case 33:            // crushed drink can
+            c.setFillColor(CGColor(red: 0.80, green: 0.30, blue: 0.26, alpha: 1))
+            c.fill(CGRect(x: -s * 0.4, y: -s * 0.75, width: s * 0.8, height: s * 1.5))
+            c.setFillColor(CGColor(red: 0.92, green: 0.92, blue: 0.95, alpha: 1))
+            c.fill(CGRect(x: -s * 0.4, y: -s * 0.1, width: s * 0.8, height: s * 0.22))
+            c.setStrokeColor(CGColor(red: 0.5, green: 0.5, blue: 0.55, alpha: 0.7)); c.setLineWidth(0.6)
+            c.stroke(CGRect(x: -s * 0.4, y: -s * 0.75, width: s * 0.8, height: s * 1.5))
+        case 34:            // sheet of newspaper
+            let r = CGRect(x: -s, y: -s * 0.7, width: s * 2, height: s * 1.4)
+            c.setFillColor(CGColor(red: 0.86, green: 0.85, blue: 0.80, alpha: 0.95))
+            c.fill(r)
+            c.setStrokeColor(CGColor(red: 0.35, green: 0.35, blue: 0.38, alpha: 0.5)); c.setLineWidth(0.5)
+            for k in 0..<4 {
+                let ly = r.minY + r.height * (0.2 + 0.2 * CGFloat(k))
+                c.move(to: CGPoint(x: r.minX + 2, y: ly)); c.addLine(to: CGPoint(x: r.maxX - 2, y: ly))
+            }
+            c.move(to: CGPoint(x: 0, y: r.minY + 2)); c.addLine(to: CGPoint(x: 0, y: r.maxY - 2))
+            c.strokePath()
+        default:            // 31: scrap of paper
             let r = CGRect(x: -s * 0.65, y: -s * 0.45, width: s * 1.3, height: s * 0.9)
             c.setFillColor(CGColor(red: 0.93, green: 0.91, blue: 0.85, alpha: 1))
             c.fill(r)
